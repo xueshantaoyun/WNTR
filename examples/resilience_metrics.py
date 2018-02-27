@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 def topographic_metrics(wn):
     # Get a copy of the graph
-    G = wn.get_graph_deep_copy()
+    G = wn.get_graph()
 
     # Print general topographic information
     print(nx.info(G))
@@ -34,13 +34,6 @@ def topographic_metrics(wn):
                           title='Terminal nodes', node_size=40, node_range=[0,1])
     print("Number of terminal nodes: " + str(len(terminal_nodes)))
     print("   " + str(terminal_nodes))
-
-    # Compute number of non-zero demand (NZD) nodes
-    nzd_nodes = wn.query_node_attribute('base_demand', np.greater, 0.0)
-    wntr.graphics.plot_network(wn, node_attribute=list(nzd_nodes.keys()),
-                          title='NZD nodes', node_size=40, node_range=[0,1])
-    print("Number of NZD nodes: " + str(len(nzd_nodes)))
-    print("   " + str(nzd_nodes.keys()))
 
     # Compute pipes with diameter > threshold
     diameter = 0.508 # m (20 inches)
@@ -134,7 +127,7 @@ def hydraulic_metrics(wn):
     P_lower = 21.09 # m (30 psi)
 
     # Query pressure
-    pressure = results.node.loc['pressure', :, junctions]
+    pressure = results.node.loc['pressure',:,junctions]
     mask = wntr.metrics.query(pressure, np.greater, P_lower)
     pressure_regulation = mask.all(axis=0).sum() # True over all time
     print("Fraction of nodes > 30 psi: " + str(pressure_regulation))
@@ -155,8 +148,8 @@ def hydraulic_metrics(wn):
 
     # Create a weighted graph for flowrate at time 36 hours
     t = 36*3600
-    attr = results.link.loc['flowrate', t, :]
-    G_flowrate_36hrs = wn.get_graph_deep_copy()
+    attr = results.link.loc['flowrate',t,:]
+    G_flowrate_36hrs = wn.get_graph()
     G_flowrate_36hrs.weight_graph(link_attribute=attr)
 
     # Compute betweenness-centrality at time 36 hours
@@ -177,9 +170,9 @@ def hydraulic_metrics(wn):
 
     # Calculate entropy for 1 day, all nodes
     shat = []
-    G_flowrate_t = wn.get_graph_deep_copy()
+    G_flowrate_t = wn.get_graph()
     for t in np.arange(0, 24*3600+1,3600):
-        attr = results.link.loc['flowrate', t, :]
+        attr = results.link.loc['flowrate',t,:]
         G_flowrate_t.weight_graph(link_attribute=attr)
         entropy = wntr.metrics.entropy(G_flowrate_t)
         shat.append(entropy[1])
@@ -207,40 +200,43 @@ def hydraulic_metrics(wn):
 def water_quality_metrics(wn):
     # Simulate hydraulics and water quality
     sim = wntr.sim.EpanetSimulator(wn)
-    wn.options.quality = 'CHEMICAL'
-    wn.add_pattern('SourcePattern', start_time=2*3600, end_time=15*3600)
+    wn.options.quality.mode = 'CHEMICAL'
+    source_pattern = wntr.network.elements.Pattern.binary_pattern('SourcePattern', 
+            start_time=2*3600, end_time=15*3600, duration=wn.options.time.duration, 
+            step_size=wn.options.time.pattern_timestep)
+    wn.add_pattern('SourcePattern', source_pattern)
     wn.add_source('Source1', '121', 'SETPOINT', 1000, 'SourcePattern')
     wn.add_source('Source2', '123', 'SETPOINT', 1000, 'SourcePattern')
     results_CHEM = sim.run_sim()
     
-    wn.options.quality = 'AGE'
+    wn.options.quality.mode = 'AGE'
     results_AGE = sim.run_sim()
     
-    wn.options.quality = 'TRACE'
-    wn.options.quality_value = '111'
+    wn.options.quality.mode = 'TRACE'
+    wn.options.quality.trace_node = '111'
     results_TRACE = sim.run_sim()
 
     # plot chem scenario
-    CHEM_at_5hr = results_CHEM.node.loc['quality', 5*3600, :]
+    CHEM_at_5hr = results_CHEM.node['quality'].loc[ 5*3600, :]
     wntr.graphics.plot_network(wn, node_attribute=CHEM_at_5hr, node_size=20,
                           title='Chemical concentration, time = 5 hours')
-    CHEM_at_node = results_CHEM.node.loc['quality', :, '208']
+    CHEM_at_node = results_CHEM.node['quality'].loc[ :, '208']
     plt.figure()
     CHEM_at_node.plot(title='Chemical concentration, node 208')
 
     # Plot age scenario (convert to hours)
-    AGE_at_5hr = results_AGE.node.loc['quality', 5*3600, :]/3600.0
+    AGE_at_5hr = results_AGE.node['quality'].loc[ 5*3600, :]/3600.0
     wntr.graphics.plot_network(wn, node_attribute=AGE_at_5hr, node_size=20,
                           title='Water age (hrs), time = 5 hours')
-    AGE_at_node = results_AGE.node.loc['quality', :, '208']/3600.0
+    AGE_at_node = results_AGE.node['quality'].loc[ :, '208']/3600.0
     plt.figure()
     AGE_at_node.plot(title='Water age, node 208')
 
     # Plot trace scenario
-    TRACE_at_5hr = results_TRACE.node.loc['quality', 5*3600, :]
+    TRACE_at_5hr = results_TRACE.node['quality'].loc[ 5*3600, :]
     wntr.graphics.plot_network(wn, node_attribute=TRACE_at_5hr, node_size=20,
                           title='Trace percent, time = 5 hours')
-    TRACE_at_node = results_TRACE.node.loc['quality', :, '208']
+    TRACE_at_node = results_TRACE.node['quality'].loc[ :, '208']
     plt.figure()
     TRACE_at_node.plot(title='Trace percent, node 208')
 
@@ -257,7 +253,7 @@ def water_quality_metrics(wn):
 
     # Query concentration
     chem_upper_bound = 750
-    chem = results_CHEM.node.loc['quality', :, :]
+    chem = results_CHEM.node.loc['quality',:, :]
     mask = wntr.metrics.query(chem, np.greater, chem_upper_bound)
     chem_regulation = mask.any(axis=0) # True for any time
     wntr.graphics.plot_network(wn, node_attribute=chem_regulation, node_size=40,
@@ -276,8 +272,10 @@ def water_quality_metrics(wn):
 
 def water_security_metrics(wn):
     # Define WQ scenario
-    wn.options.quality = 'CHEMICAL'
-    wn.add_pattern('SourcePattern', start_time=2*3600, end_time=15*3600)
+    wn.options.quality.mode = 'CHEMICAL'
+    # Source pattern already exists
+    # source_pattern = wntr.network.elements.Pattern.binary_pattern('SourcePattern', step_size=wn.options.time.pattern_timestep, start_time=2*3600, end_time=15*3600, duration=wn.options.time.duration)
+    # wn.add_pattern('SourcePattern', source_pattern)
     wn.add_source('Source1', '121', 'SETPOINT', 1000, 'SourcePattern')
 
     # Simulate hydraulics and water quality for each scenario
@@ -292,7 +290,7 @@ def water_security_metrics(wn):
                           title='Total mass consumed')
 
     plt.figure()
-    EC.sum(axis=1).plot(title='Extent of contamination')
+    EC.plot(title='Extent of contamination')
 
 
 def population_impacted_metrics(wn):
@@ -307,10 +305,10 @@ def population_impacted_metrics(wn):
     sim = wntr.sim.EpanetSimulator(wn)
     results = sim.run_sim()
     junctions = [name for name, node in wn.junctions()]
-    pop_impacted = wntr.metrics.population_impacted(pop, results.node['pressure',:,junctions], np.less, 40)
+    pop_impacted = wntr.metrics.population_impacted(pop, results.node.loc['pressure',:,junctions], np.less, 40)
     plt.figure()
     pop_impacted.sum(axis=1).plot(title='Total population with pressure < 40 m')
-    nodes_impacted = wntr.metrics.query(results.node['pressure',:,junctions], np.less, 40)
+    nodes_impacted = wntr.metrics.query(results.node.loc['pressure',:,junctions], np.less, 40)
     wntr.graphics.plot_network(wn, node_attribute=nodes_impacted.any(axis=0), node_size=40,
                           title='Nodes impacted')
 

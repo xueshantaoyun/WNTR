@@ -1,5 +1,18 @@
 """
 The wntr.metrics.hydraulic module contains hydraulic metrics.
+
+.. rubric:: Contents
+
+.. autosummary::
+
+    expected_demand
+    average_expected_demand
+    fdv
+    fdd
+    todini
+    entropy
+
+
 """
 import wntr.network
 from wntr.network.graph import _all_simple_paths
@@ -9,10 +22,90 @@ import pandas as pd
 import networkx as nx
 import math
 from collections import Counter
-
+import sys
+if sys.version_info >= (3,0):
+    from functools import reduce
+    
 import logging
 
 logger = logging.getLogger(__name__)
+
+def expected_demand(wn, start_time=None, end_time=None, timestep=None):
+    """
+    Compute expected demand at each junction and time using base demands
+    and demand patterns along with the demand multiplier
+    
+    Parameters
+    -----------
+    wn : wntr WaterNetworkModel
+        Water network model
+        
+    Returns
+    -------
+    A pandas DataFrame that contains expected demand in m3/s
+    (index = times, columns = junction names).
+    """
+    if start_time is None:
+        start_time = 0
+    if end_time is None:
+        end_time = wn.options.time.duration
+    if timestep is None:
+        timestep = wn.options.time.report_timestep
+        
+    exp_demand = {}
+    for name, junc in wn.junctions():
+        exp_demand[name] = junc.demand_timeseries_list.get_values(start_time, end_time, 
+            timestep) * wn.options.hydraulic.demand_multiplier
+    
+    tsteps = np.arange(start_time, end_time+timestep, timestep)
+    exp_demand = pd.DataFrame(index=tsteps, data=exp_demand)
+    
+    return exp_demand
+
+def average_expected_demand(wn):
+    """
+    Compute average expected demand per day at each junction using base demands
+    and demand patterns along with the demand multiplier
+    
+    Parameters
+    -----------
+    wn : wntr WaterNetworkModel
+        Water network model
+        
+    Returns
+    -------
+    A pandas Series that contains average expected demand in m3/s
+    (index = junction names).
+    """
+    L = [24*3600] # start with a 24 hour pattern
+    for name, pattern in wn.patterns():
+        L.append(len(pattern.multipliers)*wn.options.time.pattern_timestep)
+    lcm = int(_lcml(L))
+    
+    start_time = wn.options.time.pattern_start
+    end_time = start_time+lcm
+    timestep = wn.options.time.pattern_timestep
+        
+    exp_demand = expected_demand(wn, start_time, end_time, timestep)
+    ave_exp_demand = exp_demand.mean(axis=0)
+
+    return ave_exp_demand
+
+def _gcd(x,y):
+  while y:
+    if y<0:
+      x,y=-x,-y
+    x,y=y,x % y
+    return x
+
+def _gcdl(*list):
+  return reduce(_gcd, *list)
+
+def _lcm(x,y):
+  return x*y / _gcd(x,y)
+
+def _lcml(*list):
+  return reduce(_lcm, *list)
 
 def fdv(node_results, average_times=False, average_nodes=False):
     """
@@ -168,31 +261,31 @@ def todini(node_results, link_results, wn, Pstar):
     PInPump = {}
 
     for name, node in wn.nodes(wntr.network.Junction):
-        h = np.array(node_results.loc['head',:,name]) # m
-        p = np.array(node_results.loc['pressure',:,name])
+        h = np.array(node_results['head'].loc[:,name]) # m
+        p = np.array(node_results['pressure'].loc[:,name])
         e = h - p # m
-        q = np.array(node_results.loc['demand',:,name]) # m3/s
+        q = np.array(node_results['demand'].loc[:,name]) # m3/s
         POut[name] = q*h
         PExp[name] = q*(Pstar+e)
 
     for name, node in wn.nodes(wntr.network.Reservoir):
-        H = np.array(node_results.loc['head',:,name]) # m
-        Q = np.array(node_results.loc['demand',:,name]) # m3/s
+        H = np.array(node_results['head'].loc[:,name]) # m
+        Q = np.array(node_results['demand'].loc[:,name]) # m3/s
         PInRes[name] = -Q*H # switch sign on Q.
 
     for name, link in wn.links(wntr.network.Pump):
-        start_node = link._start_node_name
-        end_node = link._end_node_name
-        h_start = np.array(node_results.loc['head',:,start_node]) # (m)
-        h_end = np.array(node_results.loc['head',:,end_node]) # (m)
+        start_node = link.start_node_name
+        end_node = link.end_node_name
+        h_start = np.array(node_results['head'].loc[:,start_node]) # (m)
+        h_end = np.array(node_results['head'].loc[:,end_node]) # (m)
         h = h_start - h_end # (m)
-        q = np.array(link_results.loc['flowrate',:,name]) # (m^3/s)
+        q = np.array(link_results['flowrate'].loc[:,name]) # (m^3/s)
         PInPump[name] = q*(abs(h)) # assumes that pumps always add energy to the system
 
     todini_index = (sum(POut.values()) - sum(PExp.values()))/  \
         (sum(PInRes.values()) + sum(PInPump.values()) - sum(PExp.values()))
 
-    todini_index = pd.Series(data = todini_index.tolist(), index = node_results.major_axis)
+    todini_index = pd.Series(data = todini_index.tolist(), index = node_results['head'].index)
 
     return todini_index
 
@@ -223,7 +316,7 @@ def entropy(G, sources=None, sinks=None):
     S : dict
         Node entropy, {node name: entropy value}
 
-    Shat : float
+    S_ave : float
         System entropy
 
     References
@@ -237,7 +330,7 @@ def entropy(G, sources=None, sinks=None):
         return
 
     if sources is None:
-        sources = [key for key,value in nx.get_node_attributes(G,'type').items() if value == 'reservoir' ]
+        sources = [key for key,value in nx.get_node_attributes(G,'type').items() if value == 'Reservoir' ]
 
     if sinks is None:
         sinks = G.nodes()
@@ -250,7 +343,7 @@ def entropy(G, sources=None, sinks=None):
             continue
 
         sp = [] # simple path
-        if G.node[nodej]['type']  == 'junction':
+        if G.node[nodej]['type']  == 'Junction':
             for source in sources:
                 if nx.has_path(G, source, nodej):
                     simple_paths = _all_simple_paths(G,source,target=nodej)
@@ -310,13 +403,13 @@ def entropy(G, sources=None, sinks=None):
     Q0 = sum(nx.get_edge_attributes(G, 'weight').values())
 
     # Equation 3
-    Shat = 0
+    S_ave = 0
     for nodej in sinks:
         if not np.isnan(S[nodej]):
             if nodej not in sources:
                 if Q[nodej]/Q0 > 0:
-                    Shat = Shat + \
+                    S_ave = S_ave + \
                         (Q[nodej]*S[nodej])/Q0 - \
                         Q[nodej]/Q0*math.log(Q[nodej]/Q0)
 
-    return [S, Shat]
+    return [S, S_ave]

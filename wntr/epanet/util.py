@@ -3,25 +3,24 @@ The wntr.epanet.util module contains unit conversion utilities based on EPANET u
 
 .. rubric:: Contents
 
-- :class:`~wntr.epanet.util.FlowUnits`
-- :class:`~wntr.epanet.util.MassUnits`
-- :class:`~wntr.epanet.util.QualParam`
-- :class:`~wntr.epanet.util.HydParam`
-- :meth:`to_si`
-- :meth:`from_si`
-- :class:`~StatisticsType`
-- :class:`~QualType`
-- :class:`~SourceType`
-- :class:`~PressureUnits`
-- :class:`~FormulaType`
-- :class:`~ControlType`
-- :class:`~LinkTankStatus`
-- :class:`~MixType`
-- :class:`~ResultType`
-- :class:`~wntr.epanet.util.EN`
+.. autosummary::
 
-----
-
+    FlowUnits
+	MassUnits
+	QualParam
+	HydParam
+	to_si
+	from_si
+	StatisticsType
+	QualType
+	SourceType
+	PressureUnits
+	FormulaType
+	ControlType
+	LinkTankStatus
+	MixType
+	ResultType
+	EN
 
 """
 import numpy as np
@@ -43,7 +42,7 @@ class FlowUnits(enum.Enum):
     This enumerated type class provides the appropriate values, rather than
     setting up a large number of constants. Additionally, each Enum value has
     a property that identifies it as either `traditional` or `metric` flow unit.
-    EPANET *does not* use fully SI units - these are provided for WNTR compatibilty.
+    EPANET *does not* use fully SI units - these are provided for WNTR compatibility.
 
     .. rubric:: Enum Members
 
@@ -292,6 +291,9 @@ class QualParam(enum.Enum):
         elif data_type is list:
             data = np.array(data)
 
+        if mass_units is None:
+            mass_units=MassUnits.mg
+
         # Do conversions
         if self in [QualParam.Concentration, QualParam.Quality, QualParam.LinkQuality]:
             data = data * (mass_units.factor/0.001)  # MASS /L to kg/m3
@@ -514,7 +516,7 @@ class HydParam(enum.Enum):
                 data = data * 0.001  # mm to m
 
         elif self in [HydParam.TankDiameter, HydParam.Elevation, HydParam.HydraulicHead,
-                      HydParam.Length, HydParam.HeadLoss]:
+                      HydParam.Length]:#, HydParam.HeadLoss]:
             if flow_units.is_traditional:
                 data = data * 0.3048  # ft to m
 
@@ -533,7 +535,8 @@ class HydParam(enum.Enum):
 
         elif self in [HydParam.Pressure]:
             if flow_units.is_traditional:
-                data = data * 0.703249614902  # psi to m
+#                data = data * 0.703249614902
+                data = data * (0.3048/0.4333)  # psi * (m/ft / psi/ft)
 
         elif self in [HydParam.Volume]:
             if flow_units.is_traditional:
@@ -597,7 +600,7 @@ class HydParam(enum.Enum):
                 data = data / 0.001  # mm from m
 
         elif self in [HydParam.TankDiameter, HydParam.Elevation, HydParam.HydraulicHead,
-                      HydParam.Length, HydParam.HeadLoss]:
+                      HydParam.Length]:#, HydParam.HeadLoss]:
             if flow_units.is_traditional:
                 data = data / 0.3048  # ft from m
 
@@ -616,7 +619,8 @@ class HydParam(enum.Enum):
 
         elif self in [HydParam.Pressure]:
             if flow_units.is_traditional:
-                data = data / 0.703249614902  # psi from m
+#                data = data / 0.703249614902
+                data = data / (0.3048/0.4333)  # psi from mH2O, i.e. psi / (m/ft / psi/ft) )
 
         elif self in [HydParam.Volume]:
             if flow_units.is_traditional:
@@ -734,7 +738,7 @@ class StatisticsType(enum.Enum):
 
 
 class QualType(enum.Enum):
-    """Provide the EPANET water quality simulation quality type.
+    """Provide the EPANET water quality simulation mode.
 
     .. rubric:: Enum Members
 
@@ -821,10 +825,9 @@ class FormulaType(enum.Enum):
     .. rubric:: Enum Members
 
     ===============  ==================================================================
-    :attr:`~HW`      Hazen-Williams headloss formula (:attr:`~str`="H-W")
-    :attr:`~DW`      Darcy-Weisbach formala; requires units conversion.
-                     (:attr:`~str`='D-W')
-    :attr:`~CM`      Chezy-Manning formula (:attr:`~str`="C-M")
+    :attr:`~HW`      Hazen-Williams headloss formula
+    :attr:`~DW`      Darcy-Weisbach formala; requires units conversion
+    :attr:`~CM`      Chezy-Manning formula
     ===============  ==================================================================
 
     """
@@ -877,16 +880,35 @@ class ControlType(enum.Enum):
 
 
 class LinkTankStatus(enum.Enum):
-    XHead = 0  #: pump cannot deliver head (closed)
-    TempClosed = 1  #: temporarily closed
-    Closed = 2 #: closed
-    Open = 3  #: open
-    Active = 4  #: valve active (partially open)
-    XFlow = 5  #: pump exceeds maximum flow
-    XFCV = 6  #: FCV cannot supply flow
-    XPressure = 7  #: valve cannot supply pressure
-    Filling = 8  #: tank filling
-    Emptying = 9  #: tank emptying
+    """The link tank status.
+
+    .. rubric:: Enum Members
+
+    ====================  ==================================================================
+    :attr:`~XHead`        Pump cannot deliver head (closed)
+    :attr:`~TempClosed`   Temporarily closed
+    :attr:`~Closed`       Closed
+    :attr:`~Open`         Open
+    :attr:`~Active`       Valve active (partially open)
+    :attr:`~XFlow`        Pump exceeds maximum flow
+    :attr:`~XFCV`         FCV cannot supply flow
+    :attr:`~XPressure`    Valve cannot supply pressure
+    :attr:`~Filling`      Tank filling
+    :attr:`~Emptying`     Tank emptying
+    ====================  ==================================================================
+
+    """
+    
+    XHead = 0  
+    TempClosed = 1  
+    Closed = 2 
+    Open = 3 
+    Active = 4  
+    XFlow = 5  
+    XFCV = 6  
+    XPressure = 7  
+    Filling = 8  
+    Emptying = 9 
 
     def __init__(self, val):
         if self.name != self.name.upper():
@@ -977,7 +999,7 @@ class EN(enum.IntEnum):
 
     For example, ``EN_LENGTH`` is accessed as ``EN.LENGTH``, instead.  Please see the EPANET
     toolkit documentation for the description of these enums. Several enums are duplicated
-    in separaet classes above for clarity during programming.
+    in separate classes above for clarity during programming.
 
     The enums can be broken in the following groups.
 
@@ -1000,6 +1022,7 @@ class EN(enum.IntEnum):
 
 
     """
+    # Node parameters
     ELEVATION    = 0
     BASEDEMAND   = 1
     PATTERN      = 2
@@ -1027,6 +1050,7 @@ class EN(enum.IntEnum):
     TANKVOLUME   = 24
     MAXVOLUME    = 25
 
+    # Link parameters
     DIAMETER     = 0
     LENGTH       = 1
     ROUGHNESS    = 2
@@ -1044,6 +1068,7 @@ class EN(enum.IntEnum):
     LINKQUAL     = 14
     LINKPATTERN  = 15
 
+    # Time parameters
     DURATION     = 0
     HYDSTEP      = 1
     QUALSTEP     = 2
@@ -1059,9 +1084,11 @@ class EN(enum.IntEnum):
     HALTFLAG     = 12
     NEXTEVENT    = 13
 
+    # Solver parameters
     ITERATIONS   = 0
     RELATIVEERROR= 1
 
+    # Count parameters
     NODECOUNT    = 0
     TANKCOUNT    = 1
     LINKCOUNT    = 2
@@ -1069,10 +1096,12 @@ class EN(enum.IntEnum):
     CURVECOUNT   = 4
     CONTROLCOUNT = 5
 
+    # Node Types
     JUNCTION     = 0
     RESERVOIR    = 1
     TANK         = 2
 
+    # Link Types
     CVPIPE       = 0
     PIPE         = 1
     PUMP         = 2
@@ -1083,16 +1112,19 @@ class EN(enum.IntEnum):
     TCV          = 7
     GPV          = 8
 
+    # Quality Types
     NONE         = 0
     CHEM         = 1
     AGE          = 2
     TRACE        = 3
 
+    # Source quality types
     CONCEN       = 0
     MASS         = 1
     SETPOINT     = 2
     FLOWPACED    = 3
 
+    # Flow units parameter
     CFS          = 0
     GPM          = 1
     MGD          = 2
@@ -1104,31 +1136,37 @@ class EN(enum.IntEnum):
     CMH          = 8
     CMD          = 9
 
+    # Miscelaneous parameters
     TRIALS       = 0
     ACCURACY     = 1
     TOLERANCE    = 2
     EMITEXPON    = 3
     DEMANDMULT   = 4
 
+    # Control types
     LOWLEVEL     = 0
     HILEVEL      = 1
     TIMER        = 2
     TIMEOFDAY    = 3
 
+    # Statistic Types
     AVERAGE      = 1
     MINIMUM      = 2
     MAXIMUM      = 3
     RANGE        = 4
 
+    # Tank mixing parameters
     MIX1         = 0
     MIX2         = 1
     FIFO         = 2
     LIFO         = 3
 
+    # Hydraulic solver / file parameters
     NOSAVE       = 0
     SAVE         = 1
     INITFLOW     = 10
 
+    # Pump behavior Types
     CONST_HP     = 0
     POWER_FUNC   = 1
     CUSTOM       = 2

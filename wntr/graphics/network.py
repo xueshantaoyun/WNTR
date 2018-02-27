@@ -4,21 +4,22 @@ water network model.
 """
 import networkx as nx
 import pandas as pd
+from wntr.graphics.color import custom_colormap
 try:
     import matplotlib.pyplot as plt
 except:
-    pass
+    plt = None
 try:
     import plotly
 except:
-    pass
+    plotly = None
 import logging
 
 logger = logging.getLogger(__name__)
 
 def plot_network(wn, node_attribute=None, link_attribute=None, title=None,
-               node_size=20, node_range = [None,None], node_cmap=plt.cm.jet, node_labels=False,
-               link_width=1, link_range = [None,None], link_cmap=plt.cm.jet, link_labels=False,
+               node_size=20, node_range = [None,None], node_cmap=None, node_labels=False,
+               link_width=1, link_range = [None,None], link_cmap=None, link_labels=False,
                add_colorbar=True, directed=False, ax=None):
     """
     Plot network graphic using networkx. 
@@ -102,13 +103,20 @@ def plot_network(wn, node_attribute=None, link_attribute=None, title=None,
     -----
     For more network draw options, see nx.draw_networkx
     """
+    
+    if plt is None:
+        raise ImportError('matplotlib is required')
 
+    if node_cmap is None:
+        node_cmap = plt.cm.jet
+    if link_cmap is None:
+        link_cmap = plt.cm.jet
     if ax is None: # create a new figure
         plt.figure(facecolor='w', edgecolor='k')
         ax = plt.gca()
         
     # Graph
-    G = wn.get_graph_deep_copy()
+    G = wn.get_graph()
     if not directed:
         G = G.to_undirected()
 
@@ -118,10 +126,12 @@ def plot_network(wn, node_attribute=None, link_attribute=None, title=None,
         pos = None
 
     # Node attribute
+    node_attr_from_list = False
     if isinstance(node_attribute, str):
         node_attribute = wn.query_node_attribute(node_attribute)
     if isinstance(node_attribute, list):
         node_attribute = dict(zip(node_attribute,[1]*len(node_attribute)))
+        node_attr_from_list = True
     if isinstance(node_attribute, pd.Series):
         if node_attribute.index.nlevels == 2: # (nodeid, time) index
             # drop time
@@ -134,12 +144,20 @@ def plot_network(wn, node_attribute=None, link_attribute=None, title=None,
         nodecolor = 'k'
     else:
         nodelist,nodecolor = zip(*node_attribute.items())
-
+        if node_attr_from_list:
+            nodecolor = 'r'
+            add_colorbar = False
+        
     # Link attribute
+    link_attr_from_list = False
     if isinstance(link_attribute, str):
         link_attribute = wn.query_link_attribute(link_attribute)
     if isinstance(link_attribute, list):
-        link_attribute = dict(zip(link_attribute,[1]*len(link_attribute)))
+        all_link_attribute = dict(zip(wn.link_name_list,[0]*len(wn.link_name_list)))
+        for link in link_attribute:
+            all_link_attribute[link] = 1
+        link_attribute = all_link_attribute
+        link_attr_from_list = True
     if isinstance(link_attribute, pd.Series):
         if link_attribute.index.nlevels == 2: # (linkid, time) index
             # drop time
@@ -152,13 +170,13 @@ def plot_network(wn, node_attribute=None, link_attribute=None, title=None,
         attr = {}
         for link_name, value in link_attribute.items():
             link = wn.get_link(link_name)
-            attr[(link.start_node, link.end_node, link_name)] = value
+            attr[(link.start_node_name, link.end_node_name, link_name)] = value
         link_attribute = attr
     if type(link_width) is dict:
         attr = {}
         for link_name, value in link_width.items():
             link = wn.get_link(link_name)
-            attr[(link.start_node, link.end_node, link_name)] = value
+            attr[(link.start_node_name, link.end_node_name, link_name)] = value
         link_width = attr
     
     # Define link list, color, and colormap
@@ -167,13 +185,17 @@ def plot_network(wn, node_attribute=None, link_attribute=None, title=None,
         linkcolor = 'k'
     else:
         linklist,linkcolor = zip(*link_attribute.items())
+        if link_attr_from_list:
+            link_cmap = custom_colormap(2, ['black', 'red'])
+            add_colorbar = False
+            
     if type(link_width) is dict:
         linklist2,link_width = zip(*link_width.items())
         if not linklist == linklist2:
             logger.warning('Link color and width do not share the same \
                            indexes, link width changed to 1.')
             link_width = 1
-
+        
     if title is not None:
         ax.set_title(title)
 
@@ -191,7 +213,7 @@ def plot_network(wn, node_attribute=None, link_attribute=None, title=None,
         labels = {}
         for link_name in wn.link_name_list:
             link = wn.get_link(link_name)
-            labels[(link.start_node, link.end_node)] = link_name
+            labels[(link.start_node_name, link.end_node_name)] = link_name
         nx.draw_networkx_edge_labels(G, pos, labels, font_size=7, ax=ax)
     if add_colorbar and node_attribute:
         plt.colorbar(nodes, shrink=0.5, pad=0, ax=ax)
@@ -263,9 +285,11 @@ def plot_interactive_network(wn, node_attribute=None, title=None,
     filename : string, optional
         HTML file name (default=None, temp-plot.html)
     """
-
+    if plotly is None:
+        raise ImportError('plotly is required')
+        
     # Graph
-    G = wn.get_graph_deep_copy()
+    G = wn.get_graph()
     
     # Node attribute
     if isinstance(node_attribute, str):

@@ -10,9 +10,9 @@ wn = wntr.network.WaterNetworkModel(inp_file)
 
 ### SIMULATION ###
 # Modify the water network model
-wn.options.duration = 48*3600
-wn.options.hydraulic_timestep = 1800
-wn.options.report_timestep = 1800
+wn.options.time.duration = 48*3600
+wn.options.time.hydraulic_timestep = 1800
+wn.options.time.report_timestep = 1800
 
 # Set nominal pressures
 for name, node in wn.junctions():
@@ -84,8 +84,7 @@ for i in range(Imax):
     f.close()
 
 ### ANALYSIS ###
-nzd_junctions = wn.query_node_attribute('base_demand', np.greater, 0,
-                                        node_type=wntr.network.Junction).keys()
+nzd_junctions = [j_name for j_name, j in wn.junctions() if sum(d.base_value for d in j.demand_timeseries_list) != 0]
 
 result_names = results.keys()
 for name in result_names:
