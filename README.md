@@ -1,12 +1,12 @@
-WNTR: Water Network Tool for Resilience
+![WNTR](documentation/figures/logo.png)
 =======================================
 
 [![TravisCI](https://travis-ci.org/sandialabs/WNTR.svg?branch=master)](https://travis-ci.org/sandialabs/WNTR)
 [![Coverage Status](https://coveralls.io/repos/github/sandialabs/WNTR/badge.svg?branch=master)](https://coveralls.io/github/sandialabs/WNTR?branch=master)
 [![Documentation Status](https://readthedocs.org/projects/wntr/badge/?version=latest)](http://wntr.readthedocs.io/en/latest/?badge=latest)
 
-WNTR is a python package designed to simulate and analyze resilience of 
-water distribution networks.  The software includes capability to:
+The Water Network Tool for Resilience (WNTR) is a Python package designed to simulate and 
+analyze resilience of water distribution networks. The software includes capability to:
 
 * Generate water network models
 * Modify network structure and operations
@@ -24,7 +24,9 @@ Citing WNTR
 
 To cite WNTR, use one of the following references:
 
-* Klise, K.A., Bynum, M., Moriarty, D., Murray, R. (2017). A software framework for assessing the resilience of drinking water systems to disasters with an example earthquake case study, Environmental Modelling and Software, Volume 95, September 2017, Pages 420-431.
+* Klise, K.A., Murray, R., Haxton, T. (2018). An overview of the Water Network Tool for Resilience (WNTR), In Proceedings of the 1st International WDSA/CCWI Joint Conference, Kingston, Ontario, Canada, July 23-25, 075, 8p.
+
+* Klise, K.A., Bynum, M., Moriarty, D., Murray, R. (2017). A software framework for assessing the resilience of drinking water systems to disasters with an example earthquake case study, Environmental Modelling and Software, 95, 420-431, doi: 10.1016/j.envsoft.2017.06.022
 
 * Klise, K.A., Hart, D.B., Moriarty, D., Bynum, M., Murray, R., Burkhardt, J., Haxton, T. (2017). Water Network Tool for Resilience (WNTR) User Manual, U.S. Environmental Protection Agency Technical Report, EPA/600/R-17/264, 47p.
 

@@ -1,6 +1,7 @@
 import unittest
 import nose
 from os.path import abspath, dirname, join
+import sys
 
 testdir = dirname(abspath(str(__file__)))
 test_datadir = join(testdir, 'networks_for_testing')
@@ -23,8 +24,8 @@ class TestWriter(unittest.TestCase):
         pass
 
     def test_all(self):
-        """FIXME: waternetworkmodel._compare"""
-        raise nose.SkipTest
+        if sys.version_info.major < 3:
+            raise nose.SkipTest
         self.assertTrue(self.wn._compare(self.wn2))
 
     def test_pipe_minor_loss(self):
@@ -66,6 +67,11 @@ class TestWriter(unittest.TestCase):
         value = control.actions()[0]._value
         self.assertAlmostEqual(value, 1.8358, 3)
 
+    def test_controls(self):
+        for name, control in self.wn.controls():
+            self.assertTrue(control._compare(self.wn2.get_control(name)))
+
+
 class TestInpFileWriter(unittest.TestCase):
 
     @classmethod
@@ -82,7 +88,8 @@ class TestInpFileWriter(unittest.TestCase):
         pass
 
     def test_wn(self):
-        raise nose.SkipTest
+        if sys.version_info.major < 3:
+            raise nose.SkipTest
         self.assertTrue(self.wn._compare(self.wn2))
 
     def test_junctions(self):
@@ -146,6 +153,11 @@ class TestInpFileWriter(unittest.TestCase):
         options2 = self.wn2.options
         self.assertEqual(options1 == options2, True)
 
+    def test_controls(self):
+        for name, control in self.wn.controls():
+            self.assertTrue(control._compare(self.wn2.get_control(name)))
+
+
 class TestNet3InpWriterResults(unittest.TestCase):
 
     @classmethod
@@ -164,6 +176,8 @@ class TestNet3InpWriterResults(unittest.TestCase):
 
         sim = self.wntr.sim.EpanetSimulator(self.wn2)
         self.results2 = sim.run_sim()
+        
+        
 
     @classmethod
     def tearDownClass(self):
@@ -171,22 +185,22 @@ class TestNet3InpWriterResults(unittest.TestCase):
 
     def test_link_flowrate(self):
         for link_name, link in self.wn.links():
-            for t in self.results2.time:
+            for t in self.results2.link['flowrate'].index:
                 self.assertLessEqual(abs(self.results2.link['flowrate'].loc[t,link_name] - self.results.link['flowrate'].loc[t,link_name]), 0.00001)
 
     def test_node_demand(self):
         for node_name, node in self.wn.nodes():
-            for t in self.results2.time:
+            for t in self.results2.node['demand'].index:
                 self.assertAlmostEqual(self.results2.node['demand'].loc[t,node_name], self.results.node['demand'].loc[t,node_name], 4)
 
     def test_node_head(self):
         for node_name, node in self.wn.nodes():
-            for t in self.results2.time:
+            for t in self.results2.node['head'].index:
                 self.assertLessEqual(abs(self.results2.node['head'].loc[t,node_name] - self.results.node['head'].loc[t,node_name]), 0.01)
 
     def test_node_pressure(self):
         for node_name, node in self.wn.nodes():
-            for t in self.results2.time:
+            for t in self.results2.node['pressure'].index:
                 self.assertLessEqual(abs(self.results2.node['pressure'].loc[t,node_name] - self.results.node['pressure'].loc[t,node_name]), 0.05)
 
 
@@ -215,7 +229,7 @@ class TestNet3InpUnitsResults(unittest.TestCase):
 
     def test_link_flowrate_units_convert(self):
         for link_name, link in self.wn.links():
-            for t in self.results2.time:
+            for t in self.results2.link['flowrate'].index:
                 self.assertLessEqual(abs(self.results2.link['flowrate'].loc[t,link_name] - self.results.link['flowrate'].loc[t,link_name]), 0.00001)
 
 if __name__ == '__main__':
